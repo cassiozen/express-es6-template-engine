@@ -1,14 +1,13 @@
-const fs = require('fs'); // this engine requires the fs module
 const utils = require('./utils');
 /* jshint ignore:start */
 const compile = (content, $ = '$') => Function($, 'return `' + content + '`;');
 /* jshint ignore:end */
 const setPath = (views, ref, ext) => ref.endsWith(ext) ? ref : views  + '/' + ref + ext;
-const getPartial = (path, cb = 'resolveNeutral') => {
+const getPartial = (path, settings, cb = 'resolveNeutral') => {
   const findFile = function(resolve, reject) {
     this.resolveNeutral = (err, content) => err ? reject(new Error(err)) : resolve(content);
     this.resolvePositive = (err, content) => resolve(err || content);
-    fs.readFile(path, 'utf-8', this[cb]);
+    utils.readTemplate(path, settings, this[cb])
   };
   return new Promise(findFile);
 };
@@ -36,10 +35,10 @@ module.exports = (path, options, render = (err, content) => err || content) => {
       const applySettings = () => {
         const ext = '.' + settings['view engine'];
         if(typeof settings.views === 'string') {
-          return i => getPartial(setPath(settings.views, partials[i], ext));
+          return i => getPartial(setPath(settings.views, partials[i], ext), settings);
         }
         return i => {
-          const getFile = view => getPartial(setPath(view, partials[i], ext), 'resolvePositive');
+          const getFile = view => getPartial(setPath(view, partials[i], ext), settings, 'resolvePositive');
           const getFirst = value => typeof value === 'string';
           const searchFile = (resolve, reject) => {
             const getContent = values => resolve(values.find(getFirst));
@@ -48,7 +47,7 @@ module.exports = (path, options, render = (err, content) => err || content) => {
           return new Promise(searchFile);
         };
       };
-      const setPartial = settings ? applySettings() : i => getPartial(partials[i]);
+      const setPartial = settings ? applySettings() : i => getPartial(partials[i], settings);
       localsKeys.push(...partialsKeys);
       return Promise.all(partialsKeys.map(setPartial))
         .then(compilePartials)
@@ -59,5 +58,5 @@ module.exports = (path, options, render = (err, content) => err || content) => {
   if (template) {
     return assign(null, path);
   }
-  fs.readFile(path, 'utf-8', assign);
+  utils.readTemplate(path, settings, assign);
 };
